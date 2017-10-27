@@ -111,14 +111,31 @@ class controller:
         self.get_vuln_details(header, tagged_vulns)
 
     def get_vuln_details(self, header, traces):
-
         for trace, trace_obj in traces.items():
+
+            # Set title for the Github issue
+            endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces/%s/card" % trace
+            r = requests.get(url=endpoint, headers=header)
+            trace_card = json.loads(r.text)
+            issue_title = trace_card['card']['title']
+            trace_obj["issue_title"] = issue_title
+
+            # Set body of the Github issue
             endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces/%s/story" % trace
             r = requests.get(url=endpoint, headers=header)
-            response = json.loads(r.text)
+            trace_story = json.loads(r.text)
+            trace_chapters = trace_story['story']['chapters']
+            trace_risk = trace_story['story']['risk']
+            # Parse story and risk to get the body
+            issue_body = self.parse_issue_body(trace_chapters, trace_risk)
 
-            print(response)
+
+
+
             # print(trace_obj)
+
+    def parse_issue_body(self, chapters, risk):
+        print(chapters.__len__())
 
 
 github_controller = controller()
