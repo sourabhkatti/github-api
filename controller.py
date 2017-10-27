@@ -9,7 +9,7 @@ class controller:
     def get_user_info(self):
         endpoint = "https://api.github.com/user"
         header = {
-            "Authorization": "token 7f5a5cbb61a6319e5708bedcd6f038b384e85c57",
+            "Authorization": "token 6487b46fb3f6e4b2ad40811d46c28e3cd818d899",
             "content-type": "application/json"
         }
 
@@ -21,11 +21,11 @@ class controller:
     def create_issue(self):
         endpoint = "https://api.github.com/repos/sourabhkatti/testeeg/issues"
         header = {
-            "Authorization": "token 7f5a5cbb61a6319e5708bedcd6f038b384e85c57",
+            "Authorization": "token 6487b46fb3f6e4b2ad40811d46c28e3cd818d899",
             "content-type": "application/json"
         }
         issue = {
-            "title": "Found a bug",
+            "title": "Found a bug #6",
             "body": "I'm having a problem with this."
         }
 
@@ -33,8 +33,19 @@ class controller:
         response = json.loads(r.text)
         print(response)
 
+    def list_issues(self):
+        endpoint = "https://api.github.com/issues"
+        header = {
+            "Authorization": "token 6487b46fb3f6e4b2ad40811d46c28e3cd818d899",
+            "content-type": "application/json"
+        }
+
+        r = requests.get(url=endpoint, headers=header)
+        response = json.loads(r.text)
+        print(response)
+
 
 github_controller = controller()
 # github_controller.getuserinfo()
 
-github_controller.create_issue()
+github_controller.list_issues()
