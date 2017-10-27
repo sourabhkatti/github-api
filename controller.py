@@ -85,8 +85,9 @@ class controller:
         tagged_vulns = self.get_vulns_by_tag(username, api_key, service_key, tag_name)
 
     def get_vulns_by_tag(self, username, api_key, service_key, tag_name):
-        endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/orgtraces/ids?expand=application,servers,violations,bugtracker,skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen&tracked=false&untracked=false" % tag_name
-        # endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/applications"
+        endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/orgtraces" \
+                   "/ids?expand=application,servers,violations,bugtracker," \
+                   "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % tag_name
 
         AUTHORIZATION = base64.b64encode((username + ':' + service_key).encode('utf-8'))
 
@@ -100,34 +101,34 @@ class controller:
         tagged_vulns = {}
         if json.loads(r.text)['traces'].__len__() > 0:
             for vuln in json.loads(r.text)['traces']:
-                tagged_vulns[vuln] = vuln
+                trace_url = "https://app.contrastsecurity.com/Contrast/static/ng/index.html#/e264d365-25e4-409e-a129-ec4c684c9d50/vulns/%s/overview" % vuln
+                tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
             print(("\nFound %d vulnerabilities which have been tagged as '%s'") % (tagged_vulns.__len__(), tag_name))
             print(tagged_vulns)
-
-
-
-
-
-
-
-
-
-
-
-            return tagged_vulns
         else:
             print("No vulnerabilities found for tag '%s'" % tag_name)
-            return 0
+
+        self.get_vuln_details(header, tagged_vulns)
+
+    def get_vuln_details(self, header, traces):
+
+        for trace, trace_obj in traces.items():
+            endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces/%s/story" % trace
+            r = requests.get(url=endpoint, headers=header)
+            response = json.loads(r.text)
+
+            print(response)
+            # print(trace_obj)
 
 
 github_controller = controller()
 
 # github_controller.getuserinfo()
 
-github_controller.create_issue()
+# github_controller.create_issue()
 
 # github_controller.list_issues()
 
 # github_controller.get_assignees()
 
-# github_controller.get_teamserver_info()
+github_controller.get_teamserver_info()
