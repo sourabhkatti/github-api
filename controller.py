@@ -12,6 +12,13 @@ class controller:
     personal_access_token = personal_access_token1 + personal_access_token2
     assignee = ""
 
+    TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
+    ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+    API_KEY = ""
+    SERVICE_KEY = ""
+    TEAMSERVER_USERNAME = ""
+    TEAMSERVER_VULN_TAG = ""
+
     def get_user_info(self):
         endpoint = "https://api.github.com/user"
         header = {
@@ -75,32 +82,33 @@ class controller:
         switch = 0
         if switch is not 0:
             print("Please provide the following details about your Contrast Teamserver account.")
-            username = input("What is your username? ")
-            api_key = input("What is your API Key? ")
-            service_key = input("What is your Service Key? ")
-            tag_name = input("Which tag should be used to open Github issues for? ")
+            self.TEAMSERVER_USERNAME = input("What is your username? ")
+            self.API_KEY = input("What is your API Key? ")
+            self.SERVICE_KEY = input("What is your Service Key? ")
+            self.TEAMSERVER_VULN_TAG = input("Which tag should be used to open Github issues for? ")
         else:
-            username = "sourabh.katti@contrastsecurity.com"
-            api_key = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
-            service_key = "PJF4OWSSX6BZF9D3"
-            tag_name = "sourabh"
+            self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
+            self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
+            self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
+            self.TEAMSERVER_VULN_TAG = "sourabh1"
 
-        tagged_vulns = self.get_vulns_by_tag(username, api_key, service_key, tag_name)
+        tagged_vulns = self.get_vulns_by_tag()
         print(tagged_vulns.keys().__len__())
         for issue in tagged_vulns.values():
             self.create_issue(issue["title"], issue["description"])
+            self.update_vulns_with_github_details(issue["trace_uuid"])
             print("Issue created!")
 
-    def get_vulns_by_tag(self, username, api_key, service_key, tag_name):
-        endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/orgtraces" \
-                   "/ids?expand=application,servers,violations,bugtracker," \
-                   "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % tag_name
+    def get_vulns_by_tag(self):
+        endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
+                                                                       "/ids?expand=application,servers,violations,bugtracker," \
+                                                                       "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % self.TEAMSERVER_VULN_TAG
 
-        AUTHORIZATION = base64.b64encode((username + ':' + service_key).encode('utf-8'))
+        AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
 
         header = {
             "Authorization": AUTHORIZATION,
-            "API-Key": api_key
+            "API-Key": self.API_KEY
         }
 
         # Get vulnerabilities for a tag
@@ -108,52 +116,54 @@ class controller:
         tagged_vulns = {}
         if json.loads(r.text)['traces'].__len__() > 0:
             for vuln in json.loads(r.text)['traces']:
-                trace_url = "https://app.contrastsecurity.com/Contrast/static/ng/index.html#/e264d365-25e4-409e-a129" \
-                            "-ec4c684c9d50/vulns/%s/overview" % vuln
+                trace_url = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
                 tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
-            print("\nFound %d vulnerabilities which have been tagged as '%s'" % (tagged_vulns.__len__(), tag_name))
+            print("\nFound %d vulnerabilities which have been tagged as '%s'" % (
+            tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
             # print(tagged_vulns)
         else:
-            print("No vulnerabilities found for tag '%s'" % tag_name)
+            print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
 
         return self.get_vuln_details(header, tagged_vulns)
-
 
     def get_vuln_details(self, header, traces):
         issues_to_send = {}
         issue_num = 1
         for trace, trace_obj in traces.items():
+            print((str(issue_num) + ". Parsing %s" % trace_obj['trace_uuid'] + " .......... "), end="")
+
             # Set title for the Github issue
-            endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces" \
-                       "/%s/card" % trace
+            endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "/traces/%s/card" % trace
             r = requests.get(url=endpoint, headers=header)
             trace_card = json.loads(r.text)
             issue_title = trace_card['card']['title']
             trace_obj["issue_title"] = issue_title
 
             # Set body of the Github issue
-            endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces" \
-                       "/%s/story" % trace
+            endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "/traces/%s/story" % trace
             r = requests.get(url=endpoint, headers=header)
             trace_story = json.loads(r.text)
             trace_chapters = trace_story['story']['chapters']
             trace_risk = trace_story['story']['risk']
 
             # Get Recommendation for each trace
-            endpoint = "https://app.contrastsecurity.com/Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/traces" \
-                       "/%s/recommendation" % trace
+            endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "traces/%s/recommendation" % trace
             r = requests.get(url=endpoint, headers=header)
             trace_recommendation = json.loads(r.text)
 
-            # Parse story and risk to get the body
-            print("\n####################################################")
-            issue_body = self.parse_issue_body(trace_chapters, trace_risk, trace_obj['url'], trace_obj['trace_uuid'], trace_recommendation["recommendation"])
+            # Parse out issue body (story and risk)
+
+            issue_body = self.parse_issue_body(trace_chapters, trace_risk, trace_obj['url'], trace_obj['trace_uuid'],
+                                               trace_recommendation["recommendation"])
             # print(issue_body)
 
-            issues_to_send[issue_num] = {"title": issue_title, "description": issue_body}
+            issues_to_send[issue_num] = {"title": issue_title, "description": issue_body,
+                                         "trace_uuid": trace_obj['trace_uuid']}
             issue_num += 1
-        return issues_to_send
+            # sys.stdout.flush()
+            print("Done!")
 
+        return issues_to_send
 
     def parse_issue_body(self, chapters, raw_risk, trace_url, trace_uuid, raw_recommendation):
         # print(chapters.__len__())
@@ -166,7 +176,6 @@ class controller:
         for chapter in chapters:
 
             # print(chapter['introText'])
-
             if chapter['type'] == 'configuration':
                 introText = chapter['introText']
                 issue_body += ("\n\n" + chapter['introText'])
@@ -251,15 +260,14 @@ class controller:
         recommendation = self.parse_recommendation(raw_recommendation)
         issue_body += "\n### Recommendation to fix this finding\n" + recommendation
 
-
         # print(issue_body)
         return issue_body
 
     def parse_risk(self, risk):
         raw_risk = risk["formattedText"]
         markdown_tag_matcher = re.compile('\{+[\/\w\#]+\}+')
-        new_line_matcher = re.compile('[\\n]{4}[\s]+')          # Insert a new line if match if found
-        bold_new_line_matcher = re.compile('\\n\\t\\n')                      # Insert a new line and bold if match is found
+        new_line_matcher = re.compile('[\\n]{4}[\s]+')  # Insert a new line if match if found
+        bold_new_line_matcher = re.compile('\\n\\t\\n')  # Insert a new line and bold if match is found
         markdown_matches = re.findall(markdown_tag_matcher, raw_risk)
         if markdown_matches:
             # print(matches)
@@ -281,8 +289,8 @@ class controller:
     def parse_recommendation(self, recommendation):
         raw_recommendation = recommendation["formattedText"]
         markdown_tag_matcher = re.compile('\{+[\/\w\#]+\}+')
-        new_line_matcher = re.compile('[\\n]{4}[\s]+')          # Insert a new line if match if found
-        bold_new_line_matcher = re.compile('\\n\\t\\n')                      # Insert a new line and bold if match is found
+        new_line_matcher = re.compile('[\\n]{4}[\s]+')  # Insert a new line if match if found
+        bold_new_line_matcher = re.compile('\\n\\t\\n')  # Insert a new line and bold if match is found
 
         markdown_matches = re.findall(markdown_tag_matcher, raw_recommendation)
         if markdown_matches:
@@ -319,7 +327,42 @@ class controller:
                 raw_recommendation = raw_recommendation.replace(match, '\n#### ')
         return raw_recommendation
 
+    def update_vulns_with_github_details(self, trace_uuid):
+        endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/tags/listing?expand" \
+                        "=skip_links&filterText=%s&quickFilter=OPEN" % str(trace_uuid)
+        AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
+        header = {
+            "Authorization": AUTHORIZATION,
+            "API-Key": self.API_KEY
+        }
 
+        # Get all current tags this vulnerability has
+        r = requests.get(url=endpoint, headers=header)
+        vuln = json.loads(r.text)
+        print(vuln)
+        current_tags = []
+        for filter in vuln['filters']:
+            current_tags.append(filter['label'])
+        # print(current_tags)
+
+        # Add the Github tag to the vulnerability
+        current_tags.append("github-issue-created")
+        endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "/tags/traces/bulk?expand=skip_links"
+        payload = {
+            "traces_uuid": [trace_uuid],
+            "tags": current_tags,
+            "tags_remove": []
+        }
+        r = requests.put(url=endpoint, json=payload, headers=header)
+        verify = json.loads(r.text)
+        # print(verify)
+
+        # Add a comment to the vulnerabiity with a link to the Github issue
+        app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/{traceUuid}"
+        r = requests.get(url=endpoint, headers=header)
+        urls = json.loads(r.text)
+        for link in urls['links']:
+            if link['']
 
 
 github_controller = controller()
