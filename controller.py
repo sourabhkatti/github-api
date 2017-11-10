@@ -1,5 +1,4 @@
 import requests
-import sys
 import json
 import pprint
 import base64
@@ -119,7 +118,7 @@ class controller:
                 trace_url = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
                 tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
             print("\nFound %d vulnerabilities which have been tagged as '%s'" % (
-            tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
+                tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
             # print(tagged_vulns)
         else:
             print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
@@ -329,7 +328,8 @@ class controller:
 
     def update_vulns_with_github_details(self, trace_uuid):
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/tags/listing?expand" \
-                        "=skip_links&filterText=%s&quickFilter=OPEN" % str(trace_uuid)
+                                                                       "=skip_links&filterText=%s&quickFilter=OPEN" % str(
+            trace_uuid)
         AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
         header = {
             "Authorization": AUTHORIZATION,
@@ -358,11 +358,11 @@ class controller:
         # print(verify)
 
         # Add a comment to the vulnerabiity with a link to the Github issue
-        app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/{traceUuid}"
+        app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/%s" % trace_uuid
         r = requests.get(url=endpoint, headers=header)
         urls = json.loads(r.text)
         for link in urls['links']:
-            if link['']
+            pass
 
 
 github_controller = controller()
