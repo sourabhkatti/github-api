@@ -11,12 +11,15 @@ class controller:
     personal_access_token = personal_access_token1 + personal_access_token2
     assignee = ""
 
-    TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
+    TEAMSERVER_BASE_URL = ""
     ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
     API_KEY = ""
     SERVICE_KEY = ""
     TEAMSERVER_USERNAME = ""
     TEAMSERVER_VULN_TAG = ""
+
+    GITHUB_USERNAME = ""
+    GITHUB_REPO_NAME = ""
 
     def get_user_info(self):
         endpoint = "https://api.github.com/user"
@@ -31,7 +34,7 @@ class controller:
         print("Username is " + response["login"])
 
     def create_issue(self, title, description):
-        endpoint = "https://api.github.com/repos/sourabhkatti/github-api/issues"
+        endpoint = "https://api.github.com/repos/%s/%s/issues" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -43,7 +46,8 @@ class controller:
 
         r = requests.post(url=endpoint, headers=header, json=issue)
         response = json.loads(r.text)
-        print(response)
+        # print(response)
+        return response['html_url']
 
     def list_issues(self):
         endpoint = "https://api.github.com/issues"
@@ -80,23 +84,35 @@ class controller:
     def get_teamserver_info(self):
         switch = 0
         if switch is not 0:
-            print("Please provide the following details about your Contrast Teamserver account.")
-            self.TEAMSERVER_USERNAME = input("What is your username? ")
-            self.API_KEY = input("What is your API Key? ")
-            self.SERVICE_KEY = input("What is your Service Key? ")
-            self.TEAMSERVER_VULN_TAG = input("Which tag should be used to open Github issues for? ")
+            print("\nPlease provide the following details about your Contrast Teamserver account.\n")
+            self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
+            self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
+            self.API_KEY = input("What is your API Key? \n\t")
+            self.SERVICE_KEY = input("What is your Service Key? \n\t")
+            self.TEAMSERVER_VULN_TAG = input("Which tag should be used to open Github issues for? \n\t")
+            self.GITHUB_USERNAME = input("What is your Github username?\n\t")
+            self.GITHUB_REPO_NAME = input("What is the Github repository you'd like to open issues in?\n\t")
+            self.personal_access_token = input("What is your Github personal access token? If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/\n\t")
         else:
             self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
             self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
             self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
             self.TEAMSERVER_VULN_TAG = "sourabh1"
+            self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
+            self.GITHUB_REPO_NAME = "github-api"
+            self.GITHUB_USERNAME = "sourabhkatti"
+
 
         tagged_vulns = self.get_vulns_by_tag()
-        print(tagged_vulns.keys().__len__())
+        # print(tagged_vulns.keys().__len__())
+        issue_num = 1
+        print("\nCreating issues in Github for parsed vulnerabilities")
         for issue in tagged_vulns.values():
-            self.create_issue(issue["title"], issue["description"])
-            self.update_vulns_with_github_details(issue["trace_uuid"])
-            print("Issue created!")
+            issue_url = self.create_issue(issue["title"], issue["description"])
+            self.update_vulns_with_github_details(issue["trace_uuid"], issue_url)
+            url_string = ". Issue created: %s " % issue_url
+            print(str(issue_num) + url_string)
+            issue_num += 1
 
     def get_vulns_by_tag(self):
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
@@ -326,7 +342,7 @@ class controller:
                 raw_recommendation = raw_recommendation.replace(match, '\n#### ')
         return raw_recommendation
 
-    def update_vulns_with_github_details(self, trace_uuid):
+    def update_vulns_with_github_details(self, trace_uuid, issue_url):
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/tags/listing?expand" \
                                                                        "=skip_links&filterText=%s&quickFilter=OPEN" % str(
             trace_uuid)
@@ -339,7 +355,7 @@ class controller:
         # Get all current tags this vulnerability has
         r = requests.get(url=endpoint, headers=header)
         vuln = json.loads(r.text)
-        print(vuln)
+        # print(vuln)
         current_tags = []
         for filter in vuln['filters']:
             current_tags.append(filter['label'])
@@ -359,11 +375,24 @@ class controller:
 
         # Add a comment to the vulnerabiity with a link to the Github issue
         app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/%s" % trace_uuid
-        r = requests.get(url=endpoint, headers=header)
+        r = requests.get(url=app_endpoint, headers=header)
         urls = json.loads(r.text)
-        for link in urls['links']:
-            pass
+        note_endpoint = ''
+        for link in urls['trace']['links']:
+            if link['rel'] == "add-note":
+                note_endpoint = link['href']
 
+
+        note_payload = {
+            "note": "Github issue created for this vulnerability: %s" % issue_url
+        }
+
+        r = requests.post(url=note_endpoint, json=note_payload, headers=header)
+        verify_comment = json.loads(r.text)
+        # print(verify_comment)
+
+
+# /Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/orgtraces/filter/Q6IU-HB9L-Q48T-Y5O9
 
 github_controller = controller()
 
