@@ -30,9 +30,15 @@ class controller:
 
         r = requests.get(url=endpoint, headers=header)
         response = json.loads(r.text)
-
-        print("Username is " + response["login"])
-
+        try:
+            if response['message'] == "Bad credentials":
+                print("ERROR: " + response['message'] + ". Please check your Github username and Authorization header (%s)" % response['documentation_url'])
+                return -1
+            else:
+                # print("Username is " + response["login"])
+                return 0
+        except:
+            return 0
     def create_issue(self, title, description):
         endpoint = "https://api.github.com/repos/%s/%s/issues" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
         header = {
@@ -86,6 +92,11 @@ class controller:
         if switch is not 0:
             print("\nPlease provide the following details about your Contrast Teamserver account.\n")
             self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
+            if self.TEAMSERVER_BASE_URL[-1] is not '/':
+                self.TEAMSERVER_BASE_URL += '/'
+            self.ORGANIZATION_UUID = input("What is your organization ID? Please include a / at the end.\n\t")
+            if self.ORGANIZATION_UUID[-1] is not '/':
+                self.ORGANIZATION_UUID += '/'
             self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
             self.API_KEY = input("What is your API Key? \n\t")
             self.SERVICE_KEY = input("What is your Service Key? \n\t")
@@ -97,27 +108,39 @@ class controller:
             self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
             self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
             self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
-            self.TEAMSERVER_VULN_TAG = "sourabh1"
+            self.TEAMSERVER_VULN_TAG = "sourabh"
             self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
             self.GITHUB_REPO_NAME = "github-api"
             self.GITHUB_USERNAME = "sourabhkatti"
+            self.ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
 
 
-        tagged_vulns = self.get_vulns_by_tag()
-        # print(tagged_vulns.keys().__len__())
-        issue_num = 1
-        print("\nCreating issues in Github for parsed vulnerabilities")
-        for issue in tagged_vulns.values():
-            issue_url = self.create_issue(issue["title"], issue["description"])
-            self.update_vulns_with_github_details(issue["trace_uuid"], issue_url)
-            url_string = ". Issue created: %s " % issue_url
-            print(str(issue_num) + url_string)
-            issue_num += 1
+        github_check = self.get_user_info()
+        if github_check is 0:
+            tagged_vulns = self.get_vulns_by_tag()
+            if tagged_vulns == -1:
+                print("Unable to connect to teamserver")
+            else:
+                # print(tagged_vulns.keys().__len__())
+                issue_num = 1
+                print("\nCreating issues in Github for parsed vulnerabilities")
+                for issue in tagged_vulns.values():
+                    issue_url = self.create_issue(issue["title"], issue["description"])
+                    self.update_vulns_with_github_details(issue["trace_uuid"], issue_url)
+                    url_string = ". Issue created: %s " % issue_url
+                    print(str(issue_num) + url_string)
+                    issue_num += 1
+        else:
+            print("Unable to connect to your Github account")
 
     def get_vulns_by_tag(self):
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
                                                                        "/ids?expand=application,servers,violations,bugtracker," \
                                                                        "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % self.TEAMSERVER_VULN_TAG
+
+        verify_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
+                                                                                         "/ids?expand=application,servers,violations,bugtracker," \
+                                                                                         "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % "github-issue-created"
 
         AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
 
@@ -127,19 +150,31 @@ class controller:
         }
 
         # Get vulnerabilities for a tag
-        r = requests.get(url=endpoint, headers=header)
+        try:
+            r = requests.get(url=endpoint, headers=header)
+            r_verify = requests.get(url=verify_endpoint, headers=header)
+        except Exception as e:
+            print("ERROR: Unable to connect to teamserver. Please check your authentication details.")
+            print(e)
+            return -1
+
         tagged_vulns = {}
+        verify_vulns = json.loads(r_verify.text)
         if json.loads(r.text)['traces'].__len__() > 0:
             for vuln in json.loads(r.text)['traces']:
-                trace_url = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
-                tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
-            print("\nFound %d vulnerabilities which have been tagged as '%s'" % (
+                if vuln not in verify_vulns['traces']:
+                    # https://app.contrastsecurity.com/Contrast/static/ng/index.html#/e264d365-25e4-409e-a129-ec4c684c9d50/vulns/DAJ5-GIY6-57L5-887J/overview
+                    trace_url = self.TEAMSERVER_BASE_URL + "index.html#/" + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
+                    trace_url = trace_url.replace("api", "static")
+                    tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
+            print("\nFound %d vulnerabilities which have been tagged as '%s' and not with 'github-issue-created'" % (
                 tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
             # print(tagged_vulns)
         else:
             print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
 
         return self.get_vuln_details(header, tagged_vulns)
+
 
     def get_vuln_details(self, header, traces):
         issues_to_send = {}
