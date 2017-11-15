@@ -1,5 +1,4 @@
 import requests
-import sys
 import json
 import pprint
 import base64
@@ -7,17 +6,18 @@ import re
 
 
 class controller:
-    personal_access_token1 = "fa08220cfe316671794"
-    personal_access_token2 = "05f4f7cc26ee8f0f02586"
-    personal_access_token = personal_access_token1 + personal_access_token2
+
     assignee = ""
 
-    TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
-    ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+    TEAMSERVER_BASE_URL = ""
+    ORGANIZATION_UUID = ""
     API_KEY = ""
     SERVICE_KEY = ""
     TEAMSERVER_USERNAME = ""
     TEAMSERVER_VULN_TAG = ""
+
+    GITHUB_USERNAME = ""
+    GITHUB_REPO_NAME = ""
 
     def get_user_info(self):
         endpoint = "https://api.github.com/user"
@@ -28,11 +28,17 @@ class controller:
 
         r = requests.get(url=endpoint, headers=header)
         response = json.loads(r.text)
-
-        print("Username is " + response["login"])
-
+        try:
+            if response['message'] == "Bad credentials":
+                print("ERROR: " + response['message'] + ". Please check your Github username and Authorization header (%s)" % response['documentation_url'])
+                return -1
+            else:
+                # print("Username is " + response["login"])
+                return 0
+        except:
+            return 0
     def create_issue(self, title, description):
-        endpoint = "https://api.github.com/repos/sourabhkatti/github-api/issues"
+        endpoint = "https://api.github.com/repos/%s/%s/issues" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -44,7 +50,8 @@ class controller:
 
         r = requests.post(url=endpoint, headers=header, json=issue)
         response = json.loads(r.text)
-        print(response)
+        # print(response)
+        return response['html_url']
 
     def list_issues(self):
         endpoint = "https://api.github.com/issues"
@@ -79,30 +86,68 @@ class controller:
         print(self.assignee + " set as the assignee!")
 
     def get_teamserver_info(self):
-        switch = 0
+        switch = 1
         if switch is not 0:
-            print("Please provide the following details about your Contrast Teamserver account.")
-            self.TEAMSERVER_USERNAME = input("What is your username? ")
-            self.API_KEY = input("What is your API Key? ")
-            self.SERVICE_KEY = input("What is your Service Key? ")
-            self.TEAMSERVER_VULN_TAG = input("Which tag should be used to open Github issues for? ")
+            print("\nPlease provide the following details about your Contrast Teamserver account.\n")
+            print("---- Contrast Teamserver Details ----")
+            self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
+            if self.TEAMSERVER_BASE_URL[-1] is not '/':
+                self.TEAMSERVER_BASE_URL += '/'
+            print(self.TEAMSERVER_BASE_URL)
+            self.ORGANIZATION_UUID = input("What is your organization ID?\n\t")
+            if self.ORGANIZATION_UUID[-1] is not '/':
+                self.ORGANIZATION_UUID += '/'
+            self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
+            print("What is your API and Service keys? Please check https://docs.contrastsecurity.com/tools-apiaccess.html on how to access your keys.")
+            self.API_KEY = input("What is your API Key? \n\t")
+            self.SERVICE_KEY = input("What is your Service Key? \n\t")
+            self.TEAMSERVER_VULN_TAG = input("Which tag did you designate to the vulnerabilities you want to open Github issues for? \n\t")
+            print("\n---- Github Credentials ----")
+            self.GITHUB_USERNAME = input("What is your Github username?\n\t")
+            self.GITHUB_REPO_NAME = input("What is the Github repository you'd like to open issues in?\n\t")
+            self.personal_access_token = input("What is your Github personal access token? If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/\n\t")
         else:
             self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
             self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
             self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
-            self.TEAMSERVER_VULN_TAG = "sourabh1"
+            self.TEAMSERVER_VULN_TAG = "sourabh"
+            self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
+            self.GITHUB_REPO_NAME = "github-api"
+            self.GITHUB_USERNAME = "sourabhkatti"
+            self.ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+            self.personal_access_token1 = "15a30b158e941c78e7"
+            self.personal_access_token2 = "cc0ac307f21a122847b7cb"
+            self.personal_access_token = "15a30b158e941c78e7cc0ac307f21a122847b7cb"
 
-        tagged_vulns = self.get_vulns_by_tag()
-        print(tagged_vulns.keys().__len__())
-        for issue in tagged_vulns.values():
-            self.create_issue(issue["title"], issue["description"])
-            self.update_vulns_with_github_details(issue["trace_uuid"])
-            print("Issue created!")
+        # Check whether Github credentials are correct
+        github_check = self.get_user_info()
+        if github_check is 0:
+            tagged_vulns = self.get_vulns_by_tag()
+            if tagged_vulns == -1:
+                print("\nUnable to connect to teamserver. Please check the API and Service key, username and teamserver URL.")
+            else:
+                # print(tagged_vulns.keys().__len__())
+                issue_num = 1
+                print("\nCreating issues in Github for parsed vulnerabilities")
+                for issue in tagged_vulns.values():
+                    issue_url = self.create_issue(issue["title"], issue["description"])
+                    self.update_vulns_with_github_details(issue["trace_uuid"], issue_url)
+                    url_string = ". Issue created: %s " % issue_url
+                    print(str(issue_num) + url_string)
+                    issue_num += 1
+        else:
+            print("\nUnable to connect to your Github account. Check your Github username and Authorization hash.")
 
     def get_vulns_by_tag(self):
+        # Endpoint for tag to open vulnerabilities for (self.TEAMSERVER_VULN_TAG)
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
                                                                        "/ids?expand=application,servers,violations,bugtracker," \
                                                                        "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % self.TEAMSERVER_VULN_TAG
+
+        # Endpoint for tah which already have an issue opened for them (tag = github-issue-created)
+        verify_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
+                                                                                         "/ids?expand=application,servers,violations,bugtracker," \
+                                                                                         "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % "github-issue-created"
 
         AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
 
@@ -112,19 +157,36 @@ class controller:
         }
 
         # Get vulnerabilities for a tag
-        r = requests.get(url=endpoint, headers=header)
-        tagged_vulns = {}
-        if json.loads(r.text)['traces'].__len__() > 0:
-            for vuln in json.loads(r.text)['traces']:
-                trace_url = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
-                tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
-            print("\nFound %d vulnerabilities which have been tagged as '%s'" % (
-            tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
-            # print(tagged_vulns)
-        else:
-            print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
+        try:
+            # Get all vulns which need an issue opemed for them
+            r = requests.get(url=endpoint, headers=header)
 
-        return self.get_vuln_details(header, tagged_vulns)
+            # Get all vulns which have Github issues opened for them
+            r_verify = requests.get(url=verify_endpoint, headers=header)
+        except Exception as e:
+            print("ERROR: Unable to connect to teamserver. Please check your authentication details.")
+            print(e)
+            return -1
+
+        tagged_vulns = {}
+        verify_vulns = json.loads(r_verify.text)
+        try:
+            if json.loads(r.text)['traces'].__len__() > 0:
+                for vuln in json.loads(r.text)['traces']:
+                    if vuln not in verify_vulns['traces']:  # Only open Github issues for vulns which are not tagged with "github-issue-created"
+                        trace_url = self.TEAMSERVER_BASE_URL + "index.html#/" + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
+                        trace_url = trace_url.replace("api", "static")
+                        tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
+                print("\nFound %d vulnerabilities which have been tagged as '%s' and not with 'github-issue-created'" % (
+                    tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
+                # print(tagged_vulns)
+            else:
+                print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
+
+            return self.get_vuln_details(header, tagged_vulns)
+        except Exception as e:
+            print("ERROR: " + verify_vulns['messages'][0])
+
 
     def get_vuln_details(self, header, traces):
         issues_to_send = {}
@@ -327,9 +389,10 @@ class controller:
                 raw_recommendation = raw_recommendation.replace(match, '\n#### ')
         return raw_recommendation
 
-    def update_vulns_with_github_details(self, trace_uuid):
+    def update_vulns_with_github_details(self, trace_uuid, issue_url):
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/tags/listing?expand" \
-                        "=skip_links&filterText=%s&quickFilter=OPEN" % str(trace_uuid)
+                                                                       "=skip_links&filterText=%s&quickFilter=OPEN" % str(
+            trace_uuid)
         AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
         header = {
             "Authorization": AUTHORIZATION,
@@ -339,7 +402,7 @@ class controller:
         # Get all current tags this vulnerability has
         r = requests.get(url=endpoint, headers=header)
         vuln = json.loads(r.text)
-        print(vuln)
+        # print(vuln)
         current_tags = []
         for filter in vuln['filters']:
             current_tags.append(filter['label'])
@@ -358,12 +421,25 @@ class controller:
         # print(verify)
 
         # Add a comment to the vulnerabiity with a link to the Github issue
-        app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/{traceUuid}"
-        r = requests.get(url=endpoint, headers=header)
+        app_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces/filter/%s" % trace_uuid
+        r = requests.get(url=app_endpoint, headers=header)
         urls = json.loads(r.text)
-        for link in urls['links']:
-            if link['']
+        note_endpoint = ''
+        for link in urls['trace']['links']:
+            if link['rel'] == "add-note":
+                note_endpoint = link['href']
 
+
+        note_payload = {
+            "note": "Github issue created for this vulnerability: %s" % issue_url
+        }
+
+        r = requests.post(url=note_endpoint, json=note_payload, headers=header)
+        verify_comment = json.loads(r.text)
+        # print(verify_comment)
+
+
+# /Contrast/api/ng/e264d365-25e4-409e-a129-ec4c684c9d50/orgtraces/filter/Q6IU-HB9L-Q48T-Y5O9
 
 github_controller = controller()
 
