@@ -66,7 +66,7 @@ class controller:
         print(response)
 
     def get_assignees(self):
-        endpoint = self.GITHUB_URL + "repos/sourabhkatti/github-api/assignees"
+        endpoint = self.GITHUB_URL + "repos/%s/%s/assignees" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -158,41 +158,6 @@ class controller:
         except:
             print("Please set the GITHUB_ACCESS_TOKEN environment variable to your Github Personal Access Token. If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/")
             return
-
-        # switch = 1
-        # if switch is not 0:
-        #     print("\nPlease provide the following details about your Contrast Teamserver account.\n")
-        #     print("---- Contrast Teamserver Details ----")
-        #     self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
-        #     if self.TEAMSERVER_BASE_URL[-1] is not '/':
-        #         self.TEAMSERVER_BASE_URL += '/'
-        #     print(self.TEAMSERVER_BASE_URL)
-        #     self.ORGANIZATION_UUID = input("What is your organization ID?\n\t")
-        #     if self.ORGANIZATION_UUID[-1] is not '/':
-        #         self.ORGANIZATION_UUID += '/'
-        #     self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
-        #     print("What is your API and Service keys? Please check https://docs.contrastsecurity.com/tools-apiaccess.html on how to access your keys.")
-        #     self.API_KEY = input("What is your API Key? \n\t")
-        #     self.SERVICE_KEY = input("What is your Service Key? \n\t")
-        #     self.TEAMSERVER_VULN_TAG = input("Which tag did you designate to the vulnerabilities you want to open Github issues for? \n\t")
-        #     print("\n---- Github Credentials ----")
-        #     self.GITHUB_USERNAME = input("What is your Github username?\n\t")
-        #     self.GITHUB_REPO_NAME = input("What is the Github repository you'd like to open issues in?\n\t")
-        #     self.personal_access_token = input("What is your Github personal access token? If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/\n\t")
-        # else:
-        #     self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
-        #     self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
-        #     self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
-        #     self.TEAMSERVER_VULN_TAG = "sourabh"
-        #     self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
-        #     self.GITHUB_REPO_NAME = "github-api"
-        #     self.GITHUB_USERNAME = "sourabhkatti"
-        #     self.ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
-        #     self.personal_access_token1 = "1173ecac55ea158bd9d4"
-        #     self.personal_access_token2 = "438a4e4fe0dd39703f11"
-        #     self.personal_access_token = "1173ecac55ea158bd9d4438a4e4fe0dd39703f11"
-
-
 
         # Check whether Github credentials are correct
         github_check = self.get_user_info()
