@@ -3,16 +3,16 @@ import json
 import pprint
 import base64
 import re
+import os
+import argparse
 
 
 class controller:
-    personal_access_token1 = "fa08220cfe316671794"
-    personal_access_token2 = "05f4f7cc26ee8f0f02586"
-    personal_access_token = personal_access_token1 + personal_access_token2
+
     assignee = ""
 
     TEAMSERVER_BASE_URL = ""
-    ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+    ORGANIZATION_UUID = ""
     API_KEY = ""
     SERVICE_KEY = ""
     TEAMSERVER_USERNAME = ""
@@ -21,26 +21,25 @@ class controller:
     GITHUB_USERNAME = ""
     GITHUB_REPO_NAME = ""
 
-    def get_user_info(self):
-        endpoint = "https://api.github.com/user"
-        header = {
-            "Authorization": "token %s" % self.personal_access_token,
-            "content-type": "application/json"
-        }
+    def __init__(self):
+        parser = argparse.ArgumentParser(description='Choose whether to point to Github Enterprise or Gitlab')
 
-        r = requests.get(url=endpoint, headers=header)
-        response = json.loads(r.text)
-        try:
-            if response['message'] == "Bad credentials":
-                print("ERROR: " + response['message'] + ". Please check your Github username and Authorization header (%s)" % response['documentation_url'])
-                return -1
-            else:
-                # print("Username is " + response["login"])
-                return 0
-        except:
-            return 0
+        parser.add_argument("--url", help='Specify the Github URL to point to', nargs=1,
+                            type=str, metavar="")
+
+        argt = parser.parse_args()
+        if argt.url:
+            self.GITHUB_URL = argt.url[0]
+            if self.GITHUB_URL[-1] is not '/':
+                self.TEAMSERVER_BASE_URL += '/'
+        else:
+            self.GITHUB_URL = "https://api.github.com/"
+
+
+
+
     def create_issue(self, title, description):
-        endpoint = "https://api.github.com/repos/%s/%s/issues" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
+        endpoint = self.GITHUB_URL + "repos/%s/%s/issues" % (self.GITHUB_USERNAME, self.GITHUB_REPO_NAME)
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -56,7 +55,7 @@ class controller:
         return response['html_url']
 
     def list_issues(self):
-        endpoint = "https://api.github.com/issues"
+        endpoint = self.GITHUB_URL + "issues"
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -67,7 +66,7 @@ class controller:
         print(response)
 
     def get_assignees(self):
-        endpoint = "https://api.github.com/repos/sourabhkatti/github-api/assignees"
+        endpoint = self.GITHUB_URL + "repos/sourabhkatti/github-api/assignees"
         header = {
             "Authorization": "token %s" % self.personal_access_token,
             "content-type": "application/json"
@@ -88,38 +87,121 @@ class controller:
         print(self.assignee + " set as the assignee!")
 
     def get_teamserver_info(self):
-        switch = 0
-        if switch is not 0:
-            print("\nPlease provide the following details about your Contrast Teamserver account.\n")
-            self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
+
+        # Get the teamserver URL
+        try:
+            self.TEAMSERVER_BASE_URL = os.environ['CONTRAST_TEAMSERVER_URL']
             if self.TEAMSERVER_BASE_URL[-1] is not '/':
                 self.TEAMSERVER_BASE_URL += '/'
-            self.ORGANIZATION_UUID = input("What is your organization ID? Please include a / at the end.\n\t")
+        except:
+            print("Please set the CONTRAST_TEAMSERVER_URL environment variable to point to your teamserver location. The teamserver URL should end in /Contrast/api/ng/. For example, "
+                  "CONTRAST_TEAMSERVER_URL=https://app.contrastsecurity.com/Contrast/api/ng/")
+            return
+
+        # Get teamserver organization ID
+        try:
+            self.ORGANIZATION_UUID = os.environ['CONTRAST_ORGANIZATION_ID']
             if self.ORGANIZATION_UUID[-1] is not '/':
                 self.ORGANIZATION_UUID += '/'
-            self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
-            self.API_KEY = input("What is your API Key? \n\t")
-            self.SERVICE_KEY = input("What is your Service Key? \n\t")
-            self.TEAMSERVER_VULN_TAG = input("Which tag should be used to open Github issues for? \n\t")
-            self.GITHUB_USERNAME = input("What is your Github username?\n\t")
-            self.GITHUB_REPO_NAME = input("What is the Github repository you'd like to open issues in?\n\t")
-            self.personal_access_token = input("What is your Github personal access token? If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/\n\t")
-        else:
-            self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
-            self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
-            self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
-            self.TEAMSERVER_VULN_TAG = "sourabh"
-            self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
-            self.GITHUB_REPO_NAME = "github-api"
-            self.GITHUB_USERNAME = "sourabhkatti"
-            self.ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+        except:
+            print("Please set the CONTRAST_ORGANIZATION_ID environment variable to your organization's ID.")
+            return
+
+        # Get teamserver username
+        try:
+            self.TEAMSERVER_USERNAME = os.environ['CONTRAST_USERNAME']
+        except:
+            print("Please set the CONTRAST_USERNAME environment variable to the username you use to log in to the teamserver.")
+            return
+
+        # Get API Key
+        try:
+            self.API_KEY = os.environ['CONTRAST_API_KEY']
+        except:
+            print("Please set the CONTRAST_API_KEY environment variable to your Contrast API Key. Please check here for "
+                  "steps on how to get your API Key: https://docs.contrastsecurity.com/tools-apiaccess.html")
+            return
+
+        # Get Service Key
+        try:
+            self.SERVICE_KEY = os.environ['CONTRAST_SERVICE_KEY']
+        except:
+            print("Please set the CONTRAST_SERVICE_KEY environment variable to your Service Key. Please check here for "
+                  "steps on how to get your Service Key: https://docs.contrastsecurity.com/tools-apiaccess.html")
+            return
+
+        # Get Teamserver vuln tag
+        try:
+            self.TEAMSERVER_VULN_TAG = os.environ['CONTRAST_TEAMSERVER_TAG']
+        except:
+            print("Please set the CONTRAST_TEAMSERVER_TAG environment variable to the tag which you designated to vulnerabilities you want to open a"
+                  "Github issue for.")
+            return
 
 
+        try:
+            self.GITHUB_USERNAME = os.environ['GITHUB_USERNAME']
+        except:
+            print("Please set the GITHUB_USERNAME environment variable to the username you use to log in to Github.")
+            return
+
+        # Get Teamserver repository name
+        try:
+            self.GITHUB_REPO_NAME = os.environ['GITHUB_REPO_NAME']
+        except:
+            print("Please set the GITHUB_REPO_NAME environment variable to the name of your repository in Github.")
+            return
+
+        # Get Github personal access token
+        try:
+            self.personal_access_token = os.environ['GITHUB_ACCESS_TOKEN']
+        except:
+            print("Please set the GITHUB_ACCESS_TOKEN environment variable to your Github Personal Access Token. If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/")
+            return
+
+        # switch = 1
+        # if switch is not 0:
+        #     print("\nPlease provide the following details about your Contrast Teamserver account.\n")
+        #     print("---- Contrast Teamserver Details ----")
+        #     self.TEAMSERVER_BASE_URL = input("What is the base URL of the teamserver? (Should end in /Contrast/api/ng/) \n\t")
+        #     if self.TEAMSERVER_BASE_URL[-1] is not '/':
+        #         self.TEAMSERVER_BASE_URL += '/'
+        #     print(self.TEAMSERVER_BASE_URL)
+        #     self.ORGANIZATION_UUID = input("What is your organization ID?\n\t")
+        #     if self.ORGANIZATION_UUID[-1] is not '/':
+        #         self.ORGANIZATION_UUID += '/'
+        #     self.TEAMSERVER_USERNAME = input("What is your username? \n\t")
+        #     print("What is your API and Service keys? Please check https://docs.contrastsecurity.com/tools-apiaccess.html on how to access your keys.")
+        #     self.API_KEY = input("What is your API Key? \n\t")
+        #     self.SERVICE_KEY = input("What is your Service Key? \n\t")
+        #     self.TEAMSERVER_VULN_TAG = input("Which tag did you designate to the vulnerabilities you want to open Github issues for? \n\t")
+        #     print("\n---- Github Credentials ----")
+        #     self.GITHUB_USERNAME = input("What is your Github username?\n\t")
+        #     self.GITHUB_REPO_NAME = input("What is the Github repository you'd like to open issues in?\n\t")
+        #     self.personal_access_token = input("What is your Github personal access token? If you're not sure what that is, please check out https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/\n\t")
+        # else:
+        #     self.TEAMSERVER_USERNAME = "sourabh.katti@contrastsecurity.com"
+        #     self.API_KEY = "67yNesJ9R3dFf64fUrG3eeR6bM2Qn7Kn"
+        #     self.SERVICE_KEY = "PJF4OWSSX6BZF9D3"
+        #     self.TEAMSERVER_VULN_TAG = "sourabh"
+        #     self.TEAMSERVER_BASE_URL = "https://app.contrastsecurity.com/Contrast/api/ng/"
+        #     self.GITHUB_REPO_NAME = "github-api"
+        #     self.GITHUB_USERNAME = "sourabhkatti"
+        #     self.ORGANIZATION_UUID = "e264d365-25e4-409e-a129-ec4c684c9d50/"
+        #     self.personal_access_token1 = "1173ecac55ea158bd9d4"
+        #     self.personal_access_token2 = "438a4e4fe0dd39703f11"
+        #     self.personal_access_token = "1173ecac55ea158bd9d4438a4e4fe0dd39703f11"
+
+
+
+        # Check whether Github credentials are correct
         github_check = self.get_user_info()
         if github_check is 0:
             tagged_vulns = self.get_vulns_by_tag()
             if tagged_vulns == -1:
-                print("Unable to connect to teamserver")
+                print("\nUnable to connect to teamserver. Please check the API and Service key, username and teamserver URL.")
+            elif tagged_vulns == 0:
+                return
             else:
                 # print(tagged_vulns.keys().__len__())
                 issue_num = 1
@@ -131,16 +213,42 @@ class controller:
                     print(str(issue_num) + url_string)
                     issue_num += 1
         else:
-            print("Unable to connect to your Github account")
+            print("\nUnable to connect to your Github account. Check your Github username and Authorization hash.")
+
+
+    def get_user_info(self):
+        endpoint = self.GITHUB_URL + "user"
+        header = {
+            "Authorization": "token %s" % self.personal_access_token,
+            "content-type": "application/json"
+        }
+
+        try:
+            r = requests.get(url=endpoint, headers=header)
+            response = json.loads(r.text)
+            try:
+                if response['message'] == "Bad credentials":
+                    print("ERROR: " + response['message'] + ". Please check your Github username and Authorization header (%s)" % response['documentation_url'])
+                    return -1
+                else:
+                    # print("Username is " + response["login"])
+                    return 0
+            except:
+                return 0
+        except Exception as e:
+            print("ERROR: " + str(e))
+            return -1
 
     def get_vulns_by_tag(self):
+        # Endpoint for tag to open vulnerabilities for (self.TEAMSERVER_VULN_TAG)
         endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
                                                                        "/ids?expand=application,servers,violations,bugtracker," \
                                                                        "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % self.TEAMSERVER_VULN_TAG
 
+        # Endpoint for tah which already have an issue opened for them (tag = github-issue-created)
         verify_endpoint = self.TEAMSERVER_BASE_URL + self.ORGANIZATION_UUID + "orgtraces" \
-                                                                                         "/ids?expand=application,servers,violations,bugtracker," \
-                                                                                         "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % "github-issue-created"
+                                                                              "/ids?expand=application,servers,violations,bugtracker," \
+                                                                              "skip_links&filterTags=%s&quickFilter=OPEN&sort=-lastTimeSeen" % "github-issue-created"
 
         AUTHORIZATION = base64.b64encode((self.TEAMSERVER_USERNAME + ':' + self.SERVICE_KEY).encode('utf-8'))
 
@@ -151,7 +259,10 @@ class controller:
 
         # Get vulnerabilities for a tag
         try:
+            # Get all vulns which need an issue opemed for them
             r = requests.get(url=endpoint, headers=header)
+
+            # Get all vulns which have Github issues opened for them
             r_verify = requests.get(url=verify_endpoint, headers=header)
         except Exception as e:
             print("ERROR: Unable to connect to teamserver. Please check your authentication details.")
@@ -160,20 +271,25 @@ class controller:
 
         tagged_vulns = {}
         verify_vulns = json.loads(r_verify.text)
-        if json.loads(r.text)['traces'].__len__() > 0:
-            for vuln in json.loads(r.text)['traces']:
-                if vuln not in verify_vulns['traces']:
-                    # https://app.contrastsecurity.com/Contrast/static/ng/index.html#/e264d365-25e4-409e-a129-ec4c684c9d50/vulns/DAJ5-GIY6-57L5-887J/overview
-                    trace_url = self.TEAMSERVER_BASE_URL + "index.html#/" + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
-                    trace_url = trace_url.replace("api", "static")
-                    tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
-            print("\nFound %d vulnerabilities which have been tagged as '%s' and not with 'github-issue-created'" % (
-                tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
-            # print(tagged_vulns)
-        else:
-            print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
+        try:
+            if json.loads(r.text)['traces'].__len__() > 0:
+                for vuln in json.loads(r.text)['traces']:
+                    if vuln not in verify_vulns['traces']:  # Only open Github issues for vulns which are not tagged with "github-issue-created"
+                        trace_url = self.TEAMSERVER_BASE_URL + "index.html#/" + self.ORGANIZATION_UUID + "vulns/%s/overview" % vuln
+                        trace_url = trace_url.replace("api", "static")
+                        tagged_vulns[vuln] = {"trace_uuid": vuln, "url": trace_url}
+                print("\nFound %d vulnerabilities which have been tagged as '%s' and not with 'github-issue-created'" % (
+                    tagged_vulns.__len__(), self.TEAMSERVER_VULN_TAG))
+                # print(tagged_vulns)
+            else:
+                print("No vulnerabilities found for tag '%s'" % self.TEAMSERVER_VULN_TAG)
 
-        return self.get_vuln_details(header, tagged_vulns)
+            if tagged_vulns.__len__() == 0:
+                return 0
+            else:
+                return self.get_vuln_details(header, tagged_vulns)
+        except Exception as e:
+            print("\nERROR: " + verify_vulns['messages'][0])
 
 
     def get_vuln_details(self, header, traces):
